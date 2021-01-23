@@ -22,24 +22,39 @@ public class BasicSubjectServletCreator implements SubjectCreate {
 
     private static final String AUTHORIZATION = "Authorization";
     private static final String BASIC = "Basic";
+    private static final String SEC_WEBSOCKET_PROTOCOL = "Sec-WebSocket-Protocol";
     private static final int COUNT_2 = 2;
 
     @Override
     public boolean canSupportSubject(Object context) {
         // ("Authorization", "Basic YWRtaW46YWRtaW4=")        --- basic auth
+        // ("Sec-WebSocket-Protocol: Basic, YWRtaW46YWRtaW4=")    --- basic auth
         if (context instanceof HttpServletRequest) {
             String authorization = ((HttpServletRequest)context).getHeader(AUTHORIZATION);
-            return authorization != null && authorization.startsWith(BASIC);
-        } else {
-            return false;
+            if (authorization != null && authorization.startsWith(BASIC)) {
+                return true;
+            }
+            authorization =  ((HttpServletRequest)context).getHeader(SEC_WEBSOCKET_PROTOCOL);
+            if (authorization != null) {
+                String[] basics = authorization.split(",");
+                return basics.length == COUNT_2 && BASIC.equalsIgnoreCase(basics[0]);
+            }
         }
+        return false;
     }
 
     @Override
     public Subject createSubject(Object context) {
+        String basicAuth;
         String authorization = ((HttpServletRequest)context).getHeader(AUTHORIZATION);
-        //basic auth
-        String basicAuth = authorization.replace(BASIC, "").trim();
+        if (authorization == null || authorization.startsWith(BASIC)) {
+            authorization =  ((HttpServletRequest)context).getHeader(SEC_WEBSOCKET_PROTOCOL);
+            String[] basics = authorization.split(",");
+            basicAuth = basics[1].trim();
+        } else {
+            basicAuth = authorization.replace(BASIC, "").trim();
+        }
+
         basicAuth = new String(Base64.getDecoder().decode(basicAuth), StandardCharsets.UTF_8);
         String[] auth = basicAuth.split(":");
         if (auth.length != COUNT_2) {
